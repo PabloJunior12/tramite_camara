@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <title>Accesos del expediente {{ case.code }}</title>
+
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm;
+    }
+
+    body {
+      color: #243247;
+      font-family: Arial, sans-serif;
+      font-size: 10pt;
+    }
+
+    .page {
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .page:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+
+    header {
+      border-bottom: 3px solid #17365d;
+      margin-bottom: 22px;
+      padding-bottom: 12px;
+      text-align: center;
+    }
+
+    header h1 {
+      color: #17365d;
+      font-size: 17pt;
+      margin: 0 0 5px;
+    }
+
+    header p {
+      color: #526174;
+      font-size: 9pt;
+      margin: 0;
+    }
+
+    h2 {
+      color: #17365d;
+      font-size: 14pt;
+      margin: 22px 0 12px;
+    }
+
+    .warning {
+      background: #fff4f2;
+      border: 1px solid #e6b8b3;
+      color: #7f2929;
+      line-height: 1.5;
+      margin: 18px 0;
+      padding: 12px;
+    }
+
+    .case-info,
+    .password {
+      margin: 12px 0;
+    }
+
+    .password strong {
+      color: #17365d;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin-top: 18px;
+      width: 100%;
+    }
+
+    th {
+      background: #17365d;
+      color: white;
+      text-align: left;
+    }
+
+    th,
+    td {
+      border: 1px solid #d7dee8;
+      padding: 8px;
+      vertical-align: top;
+      word-break: break-word;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #f5f8fc;
+    }
+
+    footer {
+      border-top: 1px solid #d7dee8;
+      color: #718096;
+      font-size: 8pt;
+      margin-top: 24px;
+      padding-top: 8px;
+    }
+
+    .system-access {
+      margin: 12px 0;
+      color: #243247;
+    }
+
+    .system-access a {
+      color: #17365d;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Página 1: demandado -->
+  <section class="page">
+    <header>
+      <h1>Corte Suprema de Arbitraje</h1>
+      <p>Mesa de Partes — Accesos de participantes</p>
+    </header>
+
+    <h2>Accesos del demandado</h2>
+
+    <p class="case-info">
+      <strong>Expediente:</strong> {{ case.code }}
+    </p>
+
+    <div class="warning">
+      <strong>DOCUMENTO CONFIDENCIAL.</strong>
+      Contiene credenciales de acceso. Entréguese únicamente al destinatario.
+      No debe fotografiarse, reenviarse ni dejarse al alcance de terceros.
+      El usuario debe cambiar la contraseña temporal en su primer ingreso.
+    </div>
+
+    <p class="password">
+      <strong>Contraseña temporal:</strong> {{ initial_password }}
+    </p>
+    <p class="system-access">
+      <strong>Acceso al sistema:</strong>
+      <a href="{{ system_url }}">{{ system_url }}</a>
+    </p>
+
+
+    <table>
+      <thead>
+        <tr>
+          <th>Participante</th>
+          <th>Usuario de acceso</th>
+          <th>Correo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for participant in respondents %}
+        <tr>
+          <td>{{ participant.name }}</td>
+          <td>{{ participant.username }}</td>
+          <td>{{ participant.email }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="3">No hay demandados registrados en este expediente.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <footer>
+      Documento generado para la gestión confidencial de accesos.
+    </footer>
+  </section>
+
+  <!-- Página 2: demandante -->
+  <section class="page">
+    <header>
+      <h1>Corte Suprema de Arbitraje</h1>
+      <p>Mesa de Partes — Accesos de participantes</p>
+    </header>
+
+    <h2>Accesos del demandante</h2>
+
+    <p class="case-info">
+      <strong>Expediente:</strong> {{ case.code }}
+    </p>
+
+    <div class="warning">
+      <strong>DOCUMENTO CONFIDENCIAL.</strong>
+      Contiene credenciales de acceso. Entréguese únicamente al destinatario.
+      No debe fotografiarse, reenviarse ni dejarse al alcance de terceros.
+      El usuario debe cambiar la contraseña temporal en su primer ingreso.
+    </div>
+
+    <p class="password">
+      <strong>Contraseña temporal:</strong> {{ initial_password }}
+    </p>
+
+    <p class="system-access">
+      <strong>Acceso al sistema:</strong>
+      <a href="{{ system_url }}">{{ system_url }}</a>
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Participante</th>
+          <th>Usuario de acceso</th>
+          <th>Correo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for participant in claimants %}
+        <tr>
+          <td>{{ participant.name }}</td>
+          <td>{{ participant.username }}</td>
+          <td>{{ participant.email }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="3">No hay demandantes registrados en este expediente.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <footer>
+      Documento generado para la gestión confidencial de accesos.
+    </footer>
+  </section>
+
+</body>
+
+</html>

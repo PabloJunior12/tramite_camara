@@ -1,0 +1,257 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 18mm 12mm 18mm;
+
+      @bottom-left {
+        content: "Gestión Arbitral | Reporte de pagos";
+        font-size: 9px;
+        color: #64748b;
+      }
+
+      @bottom-right {
+        content: "Página " counter(page) " de " counter(pages);
+        font-size: 9px;
+        color: #64748b;
+      }
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 10px;
+      color: #1e293b;
+    }
+
+    .header {
+      border-bottom: 2px solid #1e3a5f;
+      padding-bottom: 14px;
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      margin: 0 0 6px;
+      font-size: 23px;
+      color: #1e3a5f;
+    }
+
+    .subtitle {
+      color: #64748b;
+      font-size: 10px;
+    }
+
+    .filters {
+      margin: 12px 0 18px;
+      color: #475569;
+    }
+
+    .summary {
+      width: 100%;
+      margin-bottom: 20px;
+    }
+
+    .summary td {
+      width: 25%;
+      padding: 12px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      vertical-align: top;
+    }
+
+    .summary-label {
+      font-size: 9px;
+      color: #64748b;
+      margin-bottom: 7px;
+    }
+
+    .summary-value {
+      font-size: 15px;
+      font-weight: bold;
+      color: #1e3a5f;
+    }
+
+    h2 {
+      font-size: 14px;
+      color: #1e3a5f;
+      margin: 16px 0 10px;
+    }
+
+    table.payments {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .payments th {
+      background: #1e3a5f;
+      color: white;
+      padding: 9px 7px;
+      text-align: left;
+      font-size: 9px;
+    }
+
+    .payments td {
+      padding: 8px 7px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+
+    .payments tr {
+      page-break-inside: avoid;
+    }
+
+    .amount {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .status {
+      font-weight: bold;
+    }
+
+    .active {
+      color: #166534;
+    }
+
+    .voided {
+      color: #b91c1c;
+    }
+
+    .muted {
+      color: #64748b;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 25px;
+      color: #64748b;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: #64748b;
+      font-size: 9px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <h1>Reporte de pagos</h1>
+    <div class="subtitle">
+      Gestión de expedientes arbitrales
+    </div>
+    <div class="subtitle">
+      Generado: {{ generated_at|date:"d/m/Y H:i" }}
+    </div>
+  </div>
+
+  <div class="filters">
+    <strong>Filtros aplicados:</strong>
+    Expediente: {{ code|default:"Todos" }} |
+    Desde: {{ date_from|default:"Sin límite" }} |
+    Hasta: {{ date_to|default:"Sin límite" }} |
+    Estado:
+    {% if status_filter == "ACTIVE" %}
+      Vigente
+    {% elif status_filter == "VOIDED" %}
+      Anulado
+    {% else %}
+      Todos
+    {% endif %}
+  </div>
+
+  {% for currency, total in totals.items %}
+    <h2>
+      Resumen financiero —
+      {% if currency == "PEN" %}Soles (PEN){% else %}Dólares (USD){% endif %}
+    </h2>
+
+    <table class="summary">
+      <tr>
+        <td>
+          <div class="summary-label">Presupuesto</div>
+          <div class="summary-value">
+            {{ currency }} {{ total.budget|floatformat:2 }}
+          </div>
+        </td>
+        <td>
+          <div class="summary-label">Total pagado vigente</div>
+          <div class="summary-value">
+            {{ currency }} {{ total.paid|floatformat:2 }}
+          </div>
+        </td>
+        <td>
+          <div class="summary-label">Saldo pendiente</div>
+          <div class="summary-value">
+            {{ currency }} {{ total.balance|floatformat:2 }}
+          </div>
+        </td>
+        <td>
+          <div class="summary-label">Importe de pagos anulados</div>
+          <div class="summary-value">
+            {{ currency }} {{ total.voided|floatformat:2 }}
+          </div>
+        </td>
+      </tr>
+    </table>
+  {% empty %}
+    <p class="muted">No hay presupuestos asociados a los pagos del filtro.</p>
+  {% endfor %}
+
+  <h2>Detalle de pagos registrados</h2>
+
+  <table class="payments">
+    <thead>
+      <tr>
+        <th>Expediente</th>
+        <th>Fecha de pago</th>
+        <th>Concepto</th>
+        <th>Referencia</th>
+        <th class="amount">Importe</th>
+        <th>Moneda</th>
+        <th>Estado</th>
+        <th>Motivo de anulación</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for payment in payments %}
+        <tr>
+          <td>{{ payment.budget.case.code }}</td>
+          <td>{{ payment.paid_at|date:"d/m/Y" }}</td>
+          <td>{{ payment.concept }}</td>
+          <td>{{ payment.reference|default:"—" }}</td>
+          <td class="amount">
+            {{ payment.amount|floatformat:2 }}
+          </td>
+          <td>{{ payment.budget.currency }}</td>
+          <td>
+            {% if payment.status == "ACTIVE" %}
+              <span class="status active">Vigente</span>
+            {% else %}
+              <span class="status voided">Anulado</span>
+            {% endif %}
+          </td>
+          <td>{{ payment.void_reason|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="8" class="empty">
+            No se encontraron pagos con los filtros seleccionados.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="footer-note">
+    Los pagos anulados se muestran para fines de trazabilidad
+    y no se consideran dentro del total pagado vigente.
+  </div>
+</body>
+</html>

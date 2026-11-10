@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Solicitud aprobada</title>
+  </head>
+
+  <body style="margin:0; padding:0; background:#f3f5f8; font-family:Arial,Helvetica,sans-serif; color:#243247;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+           style="background:#f3f5f8; padding:32px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+                 style="width:100%; max-width:600px; background:#fff; border:1px solid #e1e6ed; border-radius:8px; overflow:hidden;">
+
+            <tr>
+              <td style="background:#17365d; padding:26px 32px; color:#fff;">
+                <p style="margin:0 0 7px; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:#d7e4f3;">
+                  Corte Superior de Arbitraje
+                </p>
+                <h1 style="margin:0; font-size:22px; font-weight:600;">
+                  Mesa de Partes
+                </h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 18px; font-size:16px; line-height:1.6;">
+                  Estimado(a) {{ sender_name }}:
+                </p>
+
+                <p style="margin:0 0 22px; font-size:15px; line-height:1.7; color:#4b596b;">
+                  Le informamos que su solicitud fue aprobada. Puede utilizar el código
+                  siguiente para identificarla en futuras consultas.
+                </p>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                       style="margin-bottom:22px; background:#f5f8fc; border:1px solid #dce5ef; border-radius:6px;">
+                  <tr>
+                    <td style="padding:18px 20px;">
+                      <p style="margin:0 0 6px; font-size:12px; color:#66768a; text-transform:uppercase;">
+                        Código de trámite
+                      </p>
+                      <p style="margin:0; font-size:21px; font-weight:700; color:#17365d;">
+                        {{ procedure_code }}
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:0 0 8px; font-size:14px; line-height:1.6;">
+                  <strong>Asunto:</strong> {{ subject }}
+                </p>
+                <p style="margin:0; font-size:14px; line-height:1.6;">
+                  <strong>Estado:</strong> {{ status }}
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:20px 32px; background:#f8fafc; border-top:1px solid #e7ebf0;">
+                <p style="margin:0 0 5px; font-size:13px; font-weight:600; color:#35465d;">
+                  Mesa de Partes
+                </p>
+                <p style="margin:0; font-size:12px; line-height:1.6; color:#718096;">
+                  Mensaje automático. Por favor, no responda directamente a este correo.
+                </p>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
