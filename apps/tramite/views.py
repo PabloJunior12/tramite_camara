@@ -201,6 +201,7 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
     serializer_class = ArbitrationCaseSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["code"]
+    
 
     def get_authenticators(self):
         if self.request.method == "PATCH":
@@ -255,6 +256,12 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path=r"by-code/(?P<code>[^/.]+)")
+    def by_code(self, request, code=None):
+        expediente = get_object_or_404(self.get_queryset(), code=code)
+        serializer = self.get_serializer(expediente)
         return Response(serializer.data)
 
     @action(

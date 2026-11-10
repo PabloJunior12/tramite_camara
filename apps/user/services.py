@@ -1,15 +1,7 @@
-from .models import Module, UserPermission, User
-
+from .models import Module, UserPermission
 
 def get_allowed_modules(user):
-    # Los solicitantes solo ven Gestión arbitral (módulo 3)
-    if user.role == User.Role.APPLICANT:
-        return Module.objects.filter(
-            id=3,
-            parent__isnull=True,
-        )
-
-    # Si es staff, mostrar todos los módulos raíz
+    # Si es staff, mostrar todos los módulos
     if user.is_staff:
         return Module.objects.filter(
             parent__isnull=True
@@ -35,5 +27,5 @@ def get_allowed_modules(user):
     # Devolver módulos raíz permitidos
     return Module.objects.filter(
         id__in=allowed,
-        parent__isnull=True,
+        parent__isnull=True
     ).order_by("order")
