@@ -711,6 +711,7 @@ class CaseParty(models.Model):
         ]
 
     def __str__(self):
+        
         return f"{self.user} - {self.case.code} - {self.get_role_display()}"
 
 class CasePartyLawyer(models.Model):

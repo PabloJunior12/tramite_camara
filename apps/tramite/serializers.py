@@ -779,6 +779,7 @@ class CaseBudgetReadSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     payments = CasePaymentReadSerializer(many=True, read_only=True)
+    initial_budget_file = serializers.FileField(read_only=True)
 
     class Meta:
         model = CaseBudget
@@ -789,6 +790,7 @@ class CaseBudgetReadSerializer(serializers.ModelSerializer):
             "currency",
             "total_paid",
             "balance",
+            "initial_budget_file",
             "payments",
             "created_by",
             "updated_by",
@@ -798,15 +800,25 @@ class CaseBudgetReadSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class CaseBudgetWriteSerializer(serializers.ModelSerializer):
+
     total_amount = serializers.DecimalField(
         max_digits=14,
         decimal_places=2,
         min_value=Decimal("0.01"),
     )
 
+    initial_budget_file = serializers.FileField(
+        required=True,
+        allow_empty_file=False
+    )
+
     class Meta:
         model = CaseBudget
-        fields = ["total_amount", "currency"]
+        fields = [
+            "total_amount",
+            "currency",
+            "initial_budget_file",
+        ]
 
 class CasePaymentCreateSerializer(serializers.ModelSerializer):
     amount = serializers.DecimalField(
@@ -832,3 +844,62 @@ class CasePaymentVoidSerializer(serializers.Serializer):
         max_length=1000,
     )
 
+class FinancePaymentSerializer(serializers.ModelSerializer):
+    concept = serializers.CharField(
+        source="get_concept_display",
+        read_only=True,
+    )
+    invoice_code = serializers.CharField(
+        source="reference",
+        read_only=True,
+    )
+    case_id = serializers.IntegerField(
+        source="budget.case_id",
+        read_only=True,
+    )
+    case_code = serializers.CharField(
+        source="budget.case.code",
+        read_only=True,
+    )
+    subject = serializers.CharField(
+        source="budget.case.subject",
+        read_only=True,
+    )
+    currency = serializers.CharField(
+        source="budget.currency",
+        read_only=True,
+    )
+    claimants = serializers.SerializerMethodField()
+    respondents = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CasePayment
+        fields = [
+            "id",
+            "concept",
+            "invoice_code",
+            "paid_at",
+            "case_id",
+            "case_code",
+            "subject",
+            "amount",
+            "currency",
+            "claimants",
+            "respondents",
+        ]
+
+    def get_claimants(self, obj):
+        parties = obj.budget.case.parties.all()
+        return [
+            str(party.user)
+            for party in parties
+            if party.role == CaseParty.Role.CLAIMANT
+        ]
+
+    def get_respondents(self, obj):
+        parties = obj.budget.case.parties.all()
+        return [
+            str(party.user)
+            for party in parties
+            if party.role == CaseParty.Role.RESPONDENT
+        ]

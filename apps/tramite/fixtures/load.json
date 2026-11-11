@@ -18839,10 +18839,10 @@
         "model": "user.module",
         "pk": 6,
         "fields": {
-            "name": "Reportes",
-            "path": "/reportes",
-            "code": "reportes",
-            "icon": "fa-solid fa-chart-column",
+            "name": "Finanzas",
+            "path": "finanzas",
+            "code": "finanzas",
+            "icon": "fa-solid fa-money-bill-transfer",
             "parent": null,
             "order": 8
         }

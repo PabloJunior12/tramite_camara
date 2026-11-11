@@ -17,10 +17,12 @@ from django.db.models import (
     Q,
     Sum,
     Value,
+    Prefetch
 )
 from django.db.models.functions import TruncMonth, Coalesce
+
 from .models import Company, Procedure, ArbitrationCase, CaseSequence, Subject, CaseParty, CaseFile, CaseMeeting, CasePartyLawyer, CaseBudget, CasePayment, Specialty, ProceduralStage, CaseLocation, CaseObservation, CaseNotification
-from .serializers import CompanySerializer, ProcedureCreateSerializer, UpdateCasePartySerializer, SubjectSerializer, ProcedureListSerializer, CaseMeetingSerializer, ArbitrationCaseSerializer, CaseFileSerializer, CreateCasePartySerializer, CasePartyLawyerSerializer, AssignLawyerSerializer, CasePaymentVoidSerializer, CaseBudgetReadSerializer, CaseBudgetWriteSerializer, CasePaymentReadSerializer, CasePaymentCreateSerializer, SpecialtySerializer, ProceduralStageSerializer, CaseLocationSerializer, CaseObservationSerializer, CaseNotificationSerializer
+from .serializers import CompanySerializer, ProcedureCreateSerializer, FinancePaymentSerializer, UpdateCasePartySerializer, SubjectSerializer, ProcedureListSerializer, CaseMeetingSerializer, ArbitrationCaseSerializer, CaseFileSerializer, CreateCasePartySerializer, CasePartyLawyerSerializer, AssignLawyerSerializer, CasePaymentVoidSerializer, CaseBudgetReadSerializer, CaseBudgetWriteSerializer, CasePaymentReadSerializer, CasePaymentCreateSerializer, SpecialtySerializer, ProceduralStageSerializer, CaseLocationSerializer, CaseObservationSerializer, CaseNotificationSerializer
 from .utils import ProcedureFilter
 from .services import create_arbitration_case
 from django.core.exceptions import ValidationError
@@ -35,6 +37,11 @@ from django.template.loader import render_to_string
 from django.http import HttpResponse
 from weasyprint import HTML
 from .emails import send_procedure_received_email, send_procedure_rejected_email, send_procedure_approved_email
+
+
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 ZERO = Value(
     Decimal("0.00"),
@@ -678,6 +685,8 @@ class CasePartyLawyerListCreateAPIView(APIView):
 
 class CaseBudgetAPIView(APIView):
 
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
     def get(self, request, case_id):
 
         get_object_or_404(ArbitrationCase, pk=case_id)
@@ -703,18 +712,34 @@ class CaseBudgetAPIView(APIView):
         )
 
     def post(self, request, case_id):
+
+        print("CONTENT TYPE:", request.content_type)
+        print("DATA:", request.data)
+        print("FILES:", request.FILES)
+        print("ARCHIVO:", request.FILES.get("initial_budget_file"))
+
         serializer = CaseBudgetWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        print("REQUEST FILES:", request.FILES.keys())
+        print("VALIDATED DATA:", serializer.validated_data)
+        print(
+            "ARCHIVO VALIDADO:",
+            serializer.validated_data.get("initial_budget_file")
+        )
+
         if not serializer.validated_data.get("initial_budget_file"):
             raise ValidationError({
-                "initial_budget_file": "Adjunta el PDF del presupuesto inicial."
+                "initial_budget_file": [
+                    "Adjunta el PDF del presupuesto inicial."
+                ]
             })
 
         with transaction.atomic():
-            # Serializa la creación de presupuesto para este expediente.
+
             case = get_object_or_404(
                 ArbitrationCase.objects.select_for_update(),
-                pk=case_id,
+                pk=case_id
             )
 
             if CaseBudget.objects.filter(case=case).exists():
@@ -724,15 +749,15 @@ class CaseBudgetAPIView(APIView):
 
             budget = serializer.save(
                 case=case,
-                created_by=request.user,
+                created_by=request.user
             )
 
         return Response(
             CaseBudgetReadSerializer(
                 budget,
-                context={"request": request},
+                context={"request": request}
             ).data,
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_201_CREATED
         )
 
     def patch(self, request, case_id):
@@ -1100,3 +1125,247 @@ class AccountingDashboardView(APIView):
             "pending_by_currency": pending_by_currency,
             "highest_debt_cases": highest_debt_cases,
         })
+
+MONEY_FIELD = DecimalField(max_digits=14, decimal_places=2)
+ZERO_MONEY = Value(Decimal("0.00"), output_field=MONEY_FIELD)
+
+
+class FinanceAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Trae todos los presupuestos junto con sus pagos activos
+        # para calcular los totales y listar los saldos pendientes.
+        budgets = (
+            CaseBudget.objects
+            .select_related("case", "case__subject")
+            .prefetch_related(
+                Prefetch(
+                    "payments",
+                    queryset=CasePayment.objects.filter(
+                        status=CasePayment.Status.ACTIVE
+                    ),
+                    to_attr="active_payments",
+                )
+            )
+            .order_by("case__code")
+        )
+
+        currency_totals = defaultdict(
+            lambda: {
+                "total_collected": Decimal("0.00"),
+                "total_pending": Decimal("0.00"),
+            }
+        )
+        pending_by_currency = defaultdict(list)
+        debt_cases = []
+
+        for budget in budgets:
+            paid_total = sum(
+                (payment.amount for payment in budget.active_payments),
+                Decimal("0.00"),
+            )
+            pending_amount = budget.total_amount - paid_total
+
+            # Si hubiera datos inconsistentes que generasen saldo negativo,
+            # no se contabilizan como deuda pendiente.
+            pending_for_summary = max(pending_amount, Decimal("0.00"))
+
+            currency_totals[budget.currency]["total_collected"] += paid_total
+            currency_totals[budget.currency]["total_pending"] += pending_for_summary
+
+            if pending_amount > 0:
+                pending_by_currency[budget.currency].append({
+                    "case_id": budget.case_id,
+                    "case_code": budget.case.code,
+                    "subject": str(budget.case.subject),
+                    "pending_amount": pending_amount,
+                    "currency": budget.currency,
+                })
+
+                debt_cases.append({
+                    "case_id": budget.case_id,
+                    "case_code": budget.case.code,
+                    "subject": str(budget.case.subject),
+                    "currency": budget.currency,
+                    "budget_total": budget.total_amount,
+                    "paid_total": paid_total,
+                    "pending_amount": pending_amount,
+                    "created_at": budget.created_at,
+                })
+
+        # Agrupa los resúmenes por moneda.
+        currency_labels = dict(CaseBudget.Currency.choices)
+
+        currency_totals_data = [
+            {
+                "currency": currency,
+                "currency_label": currency_labels.get(currency, currency),
+                "total_collected": values["total_collected"],
+                "total_pending": values["total_pending"],
+            }
+            for currency, values in sorted(currency_totals.items())
+        ]
+
+        pending_by_currency_data = [
+            {
+                "currency": currency,
+                "currency_label": currency_labels.get(currency, currency),
+                "cases": sorted(
+                    cases,
+                    key=lambda item: item["pending_amount"],
+                    reverse=True,
+                ),
+            }
+            for currency, cases in sorted(pending_by_currency.items())
+        ]
+
+        highest_debt_cases = sorted(
+            debt_cases,
+            key=lambda item: item["pending_amount"],
+            reverse=True,
+        )[:10]
+
+        # Lista de pagos activos para el detalle financiero.
+        parties_queryset = CaseParty.objects.select_related("user")
+
+        payments = (
+            CasePayment.objects
+            .filter(status=CasePayment.Status.ACTIVE)
+            .select_related("budget", "budget__case", "budget__case__subject")
+            .prefetch_related(
+                Prefetch(
+                    "budget__case__parties",
+                    queryset=parties_queryset,
+                )
+            )
+            .order_by("-paid_at", "-created_at")
+        )
+
+        return Response({
+            "currency_totals": currency_totals_data,
+            "pending_by_currency": pending_by_currency_data,
+            "highest_debt_cases": highest_debt_cases,
+            "payments": FinancePaymentSerializer(
+                payments,
+                many=True,
+                context={"request": request},
+            ).data,
+        })
+
+
+class FinancePaymentsExcelAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        parties_queryset = CaseParty.objects.select_related("user")
+
+        payments = (
+            CasePayment.objects
+            .filter(status=CasePayment.Status.ACTIVE)
+            .select_related("budget", "budget__case")
+            .prefetch_related(
+                Prefetch(
+                    "budget__case__parties",
+                    queryset=parties_queryset,
+                )
+            )
+            .order_by("-paid_at", "-created_at")
+        )
+
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = "Pagos"
+
+        headers = [
+            "Concepto",
+            "Código de factura",
+            "Fecha",
+            "Expediente",
+            "Monto",
+            "Parte",
+        ]
+        worksheet.append(headers)
+
+        for cell in worksheet[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(
+                fill_type="solid",
+                fgColor="1F4E78",
+            )
+            cell.alignment = Alignment(horizontal="center")
+
+        for payment in payments:
+            parties = payment.budget.case.parties.all()
+
+            claimants = [
+                self._nombre_parte(party)
+                for party in parties
+                if party.role == CaseParty.Role.CLAIMANT
+            ]
+            respondents = [
+                self._nombre_parte(party)
+                for party in parties
+                if party.role == CaseParty.Role.RESPONDENT
+            ]
+
+            parte_text = (
+                f"Demandante: {', '.join(claimants) or '—'}; "
+                f"Demandado: {', '.join(respondents) or '—'}"
+            )
+
+            worksheet.append([
+                payment.get_concept_display(),
+                payment.reference or "",
+                payment.paid_at,
+                payment.budget.case.code,
+                float(payment.amount),
+                parte_text,
+            ])
+
+        # Formato de fecha y monto.
+        for row in worksheet.iter_rows(min_row=2):
+            row[2].number_format = "dd/mm/yyyy"
+            row[4].number_format = '#,##0.00'
+
+        # Ajustes para que el archivo sea cómodo de leer.
+        column_widths = {
+            1: 34,
+            2: 22,
+            3: 14,
+            4: 22,
+            5: 16,
+            6: 60,
+        }
+        for column, width in column_widths.items():
+            worksheet.column_dimensions[get_column_letter(column)].width = width
+
+        worksheet.freeze_panes = "A2"
+        worksheet.auto_filter.ref = worksheet.dimensions
+
+        filename_date = timezone.localdate().strftime("%Y-%m-%d")
+        filename = f"reporte_pagos_{filename_date}.xlsx"
+
+        response = HttpResponse(
+            content_type=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            )
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="{filename}"'
+        )
+
+        workbook.save(response)
+        return response
+
+    @staticmethod
+    def _nombre_parte(party):
+        user = party.user
+
+        if hasattr(user, "get_full_name"):
+            nombre = user.get_full_name().strip()
+            if nombre:
+                return nombre
+
+        return str(user)

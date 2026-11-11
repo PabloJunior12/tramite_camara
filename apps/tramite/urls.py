@@ -1,6 +1,6 @@
 from rest_framework import routers
 from django.urls import path
-from .views import CompanyViewSet, ProcedureViewSet, SubjectViewSet, SpecialtyViewSet, UpdateCasePartyView, DeleteCasePartyView, AccountingDashboardView, PaymentsReportPDFView, ProceduralStageViewSet, CaseLocationViewSet, ArbitrationCaseViewSet, CreateCasePartyView, ArbitrationCaseFileViewSet, ArbitrationCaseMeetingViewSet, ArbitrationCaseObservationViewSet, ArbitrationCaseNotificationViewSet, CasePartyLawyerListCreateAPIView, CaseBudgetAPIView, CasePaymentListCreateAPIView, CasePaymentVoidAPIView
+from .views import CompanyViewSet, ProcedureViewSet, SubjectViewSet, FinancePaymentsExcelAPIView, FinanceAPIView, SpecialtyViewSet, UpdateCasePartyView, DeleteCasePartyView, AccountingDashboardView, PaymentsReportPDFView, ProceduralStageViewSet, CaseLocationViewSet, ArbitrationCaseViewSet, CreateCasePartyView, ArbitrationCaseFileViewSet, ArbitrationCaseMeetingViewSet, ArbitrationCaseObservationViewSet, ArbitrationCaseNotificationViewSet, CasePartyLawyerListCreateAPIView, CaseBudgetAPIView, CasePaymentListCreateAPIView, CasePaymentVoidAPIView
 
 router = routers.DefaultRouter()
 router.register("company", CompanyViewSet)
@@ -55,6 +55,8 @@ urlpatterns = [
     path("cases/<int:case_id>/parties/<int:case_party_id>/", UpdateCasePartyView.as_view(), name="case-party-detail"),
     path("cases/<int:case_id>/parties/<int:case_party_id>/delete/", DeleteCasePartyView.as_view(), name="case-party-delete"),
 
+    path("finanzas/", FinanceAPIView.as_view(), name="finanzas"),
+    path("finanzas/reporte-excel/", FinancePaymentsExcelAPIView.as_view(), name="finanzas-reporte-excel"),
 
 
 ] + router.urls
