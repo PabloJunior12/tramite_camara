@@ -4,13 +4,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
-from .serializers import UserSerializer, ModuleSerializer, UserAdminCreateSerializer, UserAdminUpdateSerializer, PositionSerializer
+from .serializers import UserSerializer, ModuleSerializer, UserAdminCreateSerializer, ChangePasswordSerializer, UserProfileSerializer, UserCaseAccessSerializer, UserMeSerializer, UserModuleAccessSerializer, UserAdminUpdateSerializer, PositionSerializer
 from .services import get_allowed_modules
-from .models import User, Position
+from .models import User, Position, Module, UserModuleAccess
+from apps.tramite.models import UserCaseAccess
 from .permissions import IsAdminRole
-
+from django.db import transaction
 import requests
 
 class PositionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -21,6 +23,11 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Position.objects.filter(
         is_active=True
     ).order_by("category", "order")
+
+class ModuleViewSet(viewsets.ReadOnlyModelViewSet):
+
+    serializer_class = ModuleSerializer
+    queryset = Module.objects.all()
 
 class UserViewSet(viewsets.ModelViewSet):
 
@@ -52,27 +59,169 @@ class UserViewSet(viewsets.ModelViewSet):
 
         instance.delete()
 
+    @action(detail=True, methods=["get", "put"], url_path="modules")
+    def modules(self, request, pk=None):
+
+        user = self.get_object()
+
+        if request.method == "GET":
+
+            modules = user.module_accesses.values_list(
+                "module_id",
+                flat=True
+            )
+
+            return Response({
+                "user": user.id,
+                "modules": list(modules)
+            })
+
+        serializer = UserModuleAccessSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        modules = serializer.validated_data["modules"]
+
+        with transaction.atomic():
+
+            user.module_accesses.all().delete()
+
+            UserModuleAccess.objects.bulk_create([
+                UserModuleAccess(
+                    user=user,
+                    module=module
+                )
+                for module in modules
+            ])
+
+        return Response({
+            "message": "Módulos actualizados correctamente.",
+            "user": user.id,
+            "modules": [module.id for module in modules]
+        })
+
+    @action(detail=True,methods=["get", "put"],url_path="cases")
+    def cases(self, request, pk=None):
+
+        user = self.get_object()
+
+        if request.method == "GET":
+
+            cases = user.case_accesses.values_list(
+                "arbitration_case_id",
+                flat=True
+            )
+
+            return Response({
+                "user": user.id,
+                "restricted": user.case_access_restricted,
+                "cases": list(cases)
+            })
+
+        serializer = UserCaseAccessSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        restricted = serializer.validated_data["restricted"]
+        cases = serializer.validated_data.get("cases", [])
+
+        with transaction.atomic():
+
+            user.case_access_restricted = restricted
+
+            user.save(update_fields=["case_access_restricted"])
+
+            user.case_accesses.all().delete()
+
+            if restricted:
+
+                UserCaseAccess.objects.bulk_create([
+                    UserCaseAccess(
+                        user=user,
+                        arbitration_case=case
+                    )
+                    for case in cases
+                ])
+
+        return Response({
+            "message": "Accesos a expedientes actualizados correctamente.",
+            "user": user.id,
+            "restricted": restricted,
+            "cases": [case.id for case in cases] if restricted else []
+        })
+
 class MeView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
+    def get_response_data(self, request):
+
         user = request.user
 
-        # Módulos permitidos, incluyendo sus padres
         root_modules = get_allowed_modules(user)
+
         module_tree = ModuleSerializer(
             root_modules,
-            many=True
+            many=True,
+            context={"request": request}
         ).data
 
-        # Datos del usuario
-        user_data = UserSerializer(user).data
+        user_data = UserProfileSerializer(user).data
 
-        # Respuesta combinada
-        return Response({
+        return {
             **user_data,
             "modules": module_tree
+        }
+
+    def get(self, request):
+
+        return Response(
+            self.get_response_data(request)
+        )
+
+    def patch(self, request):
+
+        serializer = UserProfileSerializer(
+            request.user,
+            data=request.data,
+            partial=True
+        )
+
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response({
+            "message": "Perfil actualizado correctamente.",
+            "user": self.get_response_data(request)
+        })
+
+class ChangePasswordView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={"request": request}
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+
+        user.set_password(
+            serializer.validated_data["new_password"]
+        )
+
+        user.save(update_fields=["password"])
+
+        return Response({
+            "message": "Contraseña actualizada correctamente."
         })
 
 class LogoutView(APIView):

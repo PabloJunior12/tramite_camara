@@ -18863,9 +18863,9 @@
         "model": "user.module",
         "pk": 8,
         "fields": {
-            "name": "Configuración",
-            "path": "/configuracion",
-            "code": "configuracion",
+            "name": "Configuraciónes",
+            "path": "configuraciones",
+            "code": "configuraciones",
             "icon": "fa-solid fa-gears",
             "parent": null,
             "order": 10

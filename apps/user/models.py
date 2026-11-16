@@ -48,10 +48,10 @@ class User(AbstractUser):
 
     class Role(models.TextChoices):
 
-        APPLICANT = "APPLICANT", "Solicitante / Parte"
-        LAWYER = "LAWYER", "Abogado / Representante"
+        APPLICANT = "APPLICANT", "Parte"
+        LAWYER = "LAWYER", "Abogado"
         ARBITRATOR = "ARBITRATOR", "Árbitro"
-        STAFF = "STAFF", "Personal institucional"
+        STAFF = "STAFF", "Funcionario"
         ADMIN = "ADMIN", "Administrador"
 
     username = models.CharField(
@@ -154,6 +154,10 @@ class User(AbstractUser):
         verbose_name="cargo institucional"
     )
 
+    case_access_restricted = models.BooleanField(
+        default=False,
+        verbose_name="Acceso restringido a expedientes"
+    )
     email_verified_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -199,13 +203,24 @@ class Module(models.Model):
 
         return self.name
 
-class UserPermission(models.Model):
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='permissions')
-    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='user_permissions')
+class UserModuleAccess(models.Model):
+    
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="module_accesses",
+    )
+    
+    module = models.ForeignKey(
+        Module,
+        on_delete=models.CASCADE,
+        related_name="user_accesses",
+    )
 
     class Meta:
-        unique_together = ('user', 'module')
+
+        unique_together = ("user", "module")
 
     def __str__(self):
+
         return f"{self.user.username} - {self.module.code}"

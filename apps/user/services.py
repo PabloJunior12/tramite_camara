@@ -1,18 +1,57 @@
-from .models import Module, UserPermission
+from .models import Module, User
+
 
 def get_allowed_modules(user):
 
-    # Los solicitantes no tienen acceso al menú administrativo
-    if user.role == "APPLICANT":
-        return Module.objects.none()
+    # ADMIN y superusuarios tienen acceso completo.
+    if user.role == User.Role.ADMIN or user.is_superuser:
 
-    # Administradores y staff ven todos los módulos
-    if user.is_staff or user.role == "ADMIN":
         return Module.objects.filter(
             parent__isnull=True
-        ).order_by("order")
+        ).prefetch_related(
+            "children"
+        ).order_by("order", "name")
 
-    # Los demás usuarios ven todos los módulos
+    # Módulos exclusivos de administradores.
+    restricted_codes = [
+        "usuarios-permisos",
+    ]
+
+    # Obtener módulos asignados, excluyendo los restringidos.
+    assigned_ids = set(
+        user.module_accesses.exclude(
+            module__code__in=restricted_codes
+        ).values_list(
+            "module_id",
+            flat=True
+        )
+    )
+
+    if not assigned_ids:
+        return Module.objects.none()
+
+    # Obtener los módulos asignados.
+    assigned_modules = Module.objects.filter(
+        id__in=assigned_ids
+    )
+
+    # Identificar los padres.
+    parent_ids = set(
+        assigned_modules.exclude(
+            parent__isnull=True
+        ).values_list(
+            "parent_id",
+            flat=True
+        )
+    )
+
+    allowed_ids = assigned_ids | parent_ids
+
     return Module.objects.filter(
+        id__in=allowed_ids,
         parent__isnull=True
-    ).order_by("order")
+    ).prefetch_related(
+        "children"
+    ).order_by(
+        "order", "name"
+    )

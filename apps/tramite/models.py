@@ -916,3 +916,36 @@ class CasePayment(models.Model):
 
     def __str__(self):
         return f"{self.concept} - {self.amount}"
+
+class UserCaseAccess(models.Model):
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="case_accesses"
+    )
+
+    arbitration_case = models.ForeignKey(
+        ArbitrationCase,
+        on_delete=models.CASCADE,
+        related_name="user_accesses"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "arbitration_case"],
+                name="unique_user_arbitration_case"
+            )
+        ]
+
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return (
+            f"{self.user.username} - "
+            f"{self.arbitration_case.code}"
+        )

@@ -1,7 +1,12 @@
-from django.contrib.auth import get_user_model
+
 from rest_framework import serializers
 
-from .models import Module, UserPermission, Position
+from apps.tramite.models import ArbitrationCase
+from .models import Module, UserModuleAccess, Position
+
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 User = get_user_model()
 
@@ -25,9 +30,109 @@ class PositionSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
 
+    role_display = serializers.CharField(
+        source="get_role_display",
+        read_only=True
+    )
+
+    position = PositionSerializer(read_only=True)
+
     class Meta:
         model = User
         exclude = ['password']
+
+class UserMeSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'first_name',
+            'last_name',
+            'email',
+            'role',
+        ]
+
+class UserProfileSerializer(serializers.ModelSerializer):
+
+    role_display = serializers.CharField(source="get_role_display",read_only=True)
+    email = serializers.EmailField(required=False, allow_null=True, allow_blank=True, validators=[])
+
+    class Meta:
+
+        model = User
+        fields = [
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+
+            "document_type",
+            "document_number",
+
+            "address",
+            "business_name",
+            "representation",
+   
+            "role",
+            "role_display",
+           
+        ]
+
+        read_only_fields = [
+            "id",
+            "role",
+        ]
+
+    def validate_email(self, value):
+
+        if not value or not value.strip():
+
+           return None
+
+class ChangePasswordSerializer(serializers.Serializer):
+
+    current_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False
+    )
+
+    new_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False
+    )
+
+    confirm_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False
+    )
+
+    def validate(self, attrs):
+
+        user = self.context["request"].user
+
+        if not user.check_password(attrs["current_password"]):
+            raise serializers.ValidationError({
+                "current_password": "La contraseña actual es incorrecta."
+            })
+
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({
+                "confirm_password": "Las contraseñas no coinciden."
+            })
+
+        try:
+            validate_password(
+                attrs["new_password"],
+                user=user
+            )
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({
+                "new_password": list(error.messages)
+            })
+
+        return attrs
 
 class ModuleSerializer(serializers.ModelSerializer):
 
@@ -38,16 +143,39 @@ class ModuleSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "code", "icon", "children", "path"]
 
     def get_children(self, obj):
-        children = obj.children.all().order_by("order")
-        return ModuleSerializer(children, many=True).data
+
+        request = self.context.get("request")
+
+        if not request:
+            return ModuleSerializer(
+                obj.children.all().order_by("order"),
+                many=True
+            ).data
+
+        user = request.user
+
+        if user.role == User.Role.ADMIN or user.is_superuser:
+
+            children = obj.children.all().order_by("order")
+
+        else:
+
+            children = obj.children.filter(
+                user_accesses__user=user
+            ).order_by("order")
+
+        return ModuleSerializer(
+            children,
+            many=True,
+            context=self.context
+        ).data
     
-class UserPermissionSerializer(serializers.ModelSerializer):
+class UserModuleAccessSerializer(serializers.Serializer):
 
-    module = serializers.PrimaryKeyRelatedField(queryset=Module.objects.all())
-
-    class Meta:
-        model = UserPermission
-        fields = ['module']
+    modules = serializers.PrimaryKeyRelatedField(
+        queryset=Module.objects.all(),
+        many=True
+    )
 
 class UserAdminCreateSerializer(serializers.ModelSerializer):
 
@@ -222,3 +350,22 @@ class UserAdminUpdateSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+class UserCaseAccessSerializer(serializers.Serializer):
+
+    restricted = serializers.BooleanField()
+
+    cases = serializers.PrimaryKeyRelatedField(
+        queryset=ArbitrationCase.objects.all(),
+        many=True,
+        required=False
+    )
+
+    def validate(self, attrs):
+
+        if not attrs["restricted"] and attrs.get("cases"):
+            raise serializers.ValidationError({
+                "cases": "No debes asignar expedientes cuando el acceso es general."
+            })
+
+        return attrs

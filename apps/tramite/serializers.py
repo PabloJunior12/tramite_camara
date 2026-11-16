@@ -462,6 +462,12 @@ class CaseNotificationSerializer(serializers.ModelSerializer):
             **validated_data,
         )
 
+class ArbitrationCaseListSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = ArbitrationCase
+        fields = ["id", "code"]
+
 class ArbitrationCaseSerializer(serializers.ModelSerializer):
     
     parties = CasePartySerializer(many=True, read_only=True)
@@ -845,6 +851,7 @@ class CasePaymentVoidSerializer(serializers.Serializer):
     )
 
 class FinancePaymentSerializer(serializers.ModelSerializer):
+
     concept = serializers.CharField(
         source="get_concept_display",
         read_only=True,

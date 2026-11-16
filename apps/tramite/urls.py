@@ -1,6 +1,6 @@
 from rest_framework import routers
 from django.urls import path
-from .views import CompanyViewSet, ProcedureViewSet, SubjectViewSet, FinancePaymentsExcelAPIView, FinanceAPIView, SpecialtyViewSet, UpdateCasePartyView, DeleteCasePartyView, AccountingDashboardView, PaymentsReportPDFView, ProceduralStageViewSet, CaseLocationViewSet, ArbitrationCaseViewSet, CreateCasePartyView, ArbitrationCaseFileViewSet, ArbitrationCaseMeetingViewSet, ArbitrationCaseObservationViewSet, ArbitrationCaseNotificationViewSet, CasePartyLawyerListCreateAPIView, CaseBudgetAPIView, CasePaymentListCreateAPIView, CasePaymentVoidAPIView
+from .views import CompanyViewSet, ProcedureViewSet, SubjectViewSet, ArbitrationCaseListView, FinancePaymentsExcelAPIView, FinanceAPIView, SpecialtyViewSet, UpdateCasePartyView, DeleteCasePartyView, AccountingDashboardView, PaymentsReportPDFView, ProceduralStageViewSet, CaseLocationViewSet, ArbitrationCaseViewSet, CreateCasePartyView, ArbitrationCaseFileViewSet, ArbitrationCaseMeetingViewSet, ArbitrationCaseObservationViewSet, ArbitrationCaseNotificationViewSet, CasePartyLawyerListCreateAPIView, CaseBudgetAPIView, CasePaymentListCreateAPIView, CasePaymentVoidAPIView
 
 router = routers.DefaultRouter()
 router.register("company", CompanyViewSet)
@@ -34,7 +34,8 @@ notification_list = ArbitrationCaseNotificationViewSet.as_view({
 urlpatterns = [
 
     path("dashboard/contabilidad/", AccountingDashboardView.as_view()),
-    
+    path("arbitration-cases/list/", ArbitrationCaseListView.as_view(), name="arbitration-case-list"),
+
     path("cases/<int:case_pk>/files/", case_file_list, name="arbitration-case-files"),
     path("cases/<int:case_pk>/meetings/",meeting_list, name="arbitration-case-meetings"),
     path("cases/<int:case_pk>/observations/", observation_list, name="arbitration-case-observations"),

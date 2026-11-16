@@ -22,7 +22,7 @@ from django.db.models import (
 from django.db.models.functions import TruncMonth, Coalesce
 
 from .models import Company, Procedure, ArbitrationCase, CaseSequence, Subject, CaseParty, CaseFile, CaseMeeting, CasePartyLawyer, CaseBudget, CasePayment, Specialty, ProceduralStage, CaseLocation, CaseObservation, CaseNotification
-from .serializers import CompanySerializer, ProcedureCreateSerializer, FinancePaymentSerializer, UpdateCasePartySerializer, SubjectSerializer, ProcedureListSerializer, CaseMeetingSerializer, ArbitrationCaseSerializer, CaseFileSerializer, CreateCasePartySerializer, CasePartyLawyerSerializer, AssignLawyerSerializer, CasePaymentVoidSerializer, CaseBudgetReadSerializer, CaseBudgetWriteSerializer, CasePaymentReadSerializer, CasePaymentCreateSerializer, SpecialtySerializer, ProceduralStageSerializer, CaseLocationSerializer, CaseObservationSerializer, CaseNotificationSerializer
+from .serializers import CompanySerializer, ProcedureCreateSerializer, ArbitrationCaseListSerializer, FinancePaymentSerializer, UpdateCasePartySerializer, SubjectSerializer, ProcedureListSerializer, CaseMeetingSerializer, ArbitrationCaseSerializer, CaseFileSerializer, CreateCasePartySerializer, CasePartyLawyerSerializer, AssignLawyerSerializer, CasePaymentVoidSerializer, CaseBudgetReadSerializer, CaseBudgetWriteSerializer, CasePaymentReadSerializer, CasePaymentCreateSerializer, SpecialtySerializer, ProceduralStageSerializer, CaseLocationSerializer, CaseObservationSerializer, CaseNotificationSerializer
 from .utils import ProcedureFilter
 from .services import create_arbitration_case
 from django.core.exceptions import ValidationError
@@ -43,10 +43,10 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-ZERO = Value(
-    Decimal("0.00"),
-    output_field=DecimalField(max_digits=14, decimal_places=2),
-)
+ZERO = Value(Decimal("0.00"), output_field=DecimalField(max_digits=14, decimal_places=2))
+
+MONEY_FIELD = DecimalField(max_digits=14, decimal_places=2)
+ZERO_MONEY = Value(Decimal("0.00"), output_field=MONEY_FIELD)
 
 class CustomPagination(PageNumberPagination):
 
@@ -208,7 +208,6 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
     serializer_class = ArbitrationCaseSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["code"]
-    
 
     def get_authenticators(self):
         if self.request.method == "PATCH":
@@ -221,24 +220,40 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
+
         queryset = (
             ArbitrationCase.objects
-            .select_related("arbitrator", "created_by")
-            .prefetch_related(
-                "parties__user",
-                "parties__lawyer_assignments__lawyer",
-                "files_case",
-                "meetings",
-            )
+            .select_related("arbitrator","created_by")
+            .prefetch_related("parties__user","parties__lawyer_assignments__lawyer","files_case","meetings")
         )
 
         user = self.request.user
-        if user.is_authenticated and user.role == User.Role.APPLICANT:
-            queryset = queryset.filter(parties__user=user).distinct()
 
-        return queryset
+        if not user.is_authenticated:
+           
+           return queryset.none()
+
+        # Administradores y superusuarios tienen acceso general.
+        if user.is_superuser or user.role == User.Role.ADMIN:
+           
+           return queryset
+
+        # Solicitantes: solamente sus propios expedientes.
+        # if user.role == User.Role.APPLICANT:
+
+        #     return queryset.filter(
+        #         parties__user=user
+        #     ).distinct()
+
+        # Usuarios con acceso restringido.
+        if user.case_access_restricted:
+
+            queryset = queryset.filter(user_accesses__user=user)
+
+        return queryset.distinct()
 
     def create(self, request, *args, **kwargs):
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -271,14 +286,7 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(expediente)
         return Response(serializer.data)
 
-    @action(
-        detail=False,
-        methods=["get"],
-        url_path=r"locate/(?P<code>[^/.]+)",
-        url_name="locate",
-        permission_classes=[AllowAny],
-        authentication_classes=[],
-    )
+    @action(detail=False, methods=["get"], url_path=r"locate/(?P<code>[^/.]+)", url_name="locate")
     def locate(self, request, code=None):
         try:
             expediente = self.get_queryset().get(code=code)
@@ -384,6 +392,11 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
         )
         return response
 
+class ArbitrationCaseListView(generics.ListAPIView):
+
+    queryset = ArbitrationCase.objects.all().order_by("-id")
+    serializer_class = ArbitrationCaseListSerializer
+
 class ArbitrationCaseFileViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     serializer_class = CaseFileSerializer
@@ -463,7 +476,6 @@ class ArbitrationCaseMeetingViewSet(
         )
         serializer.save(case=case, created_by=self.request.user)
 
-
 class ArbitrationCaseObservationViewSet(
     mixins.ListModelMixin,
     mixins.CreateModelMixin,
@@ -526,7 +538,6 @@ class ArbitrationCaseNotificationViewSet(
         created = [serializer.save() for serializer in serializers_to_save]
         return Response(self.get_serializer(created, many=True, context=context).data, status=status.HTTP_201_CREATED)
    
-        
 class CreateCasePartyView(APIView):
         
         def post(self, request, case_id):
@@ -1126,10 +1137,6 @@ class AccountingDashboardView(APIView):
             "highest_debt_cases": highest_debt_cases,
         })
 
-MONEY_FIELD = DecimalField(max_digits=14, decimal_places=2)
-ZERO_MONEY = Value(Decimal("0.00"), output_field=MONEY_FIELD)
-
-
 class FinanceAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1252,7 +1259,6 @@ class FinanceAPIView(APIView):
                 context={"request": request},
             ).data,
         })
-
 
 class FinancePaymentsExcelAPIView(APIView):
     permission_classes = [IsAuthenticated]
