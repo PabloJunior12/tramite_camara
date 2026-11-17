@@ -91,12 +91,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
            return None
 
-class ChangePasswordSerializer(serializers.Serializer):
 
-    current_password = serializers.CharField(
-        write_only=True,
-        trim_whitespace=False
-    )
+class ChangePasswordSerializer(serializers.Serializer):
 
     new_password = serializers.CharField(
         write_only=True,
@@ -111,11 +107,6 @@ class ChangePasswordSerializer(serializers.Serializer):
     def validate(self, attrs):
 
         user = self.context["request"].user
-
-        if not user.check_password(attrs["current_password"]):
-            raise serializers.ValidationError({
-                "current_password": "La contraseña actual es incorrecta."
-            })
 
         if attrs["new_password"] != attrs["confirm_password"]:
             raise serializers.ValidationError({
@@ -133,6 +124,7 @@ class ChangePasswordSerializer(serializers.Serializer):
             })
 
         return attrs
+
 
 class ModuleSerializer(serializers.ModelSerializer):
 

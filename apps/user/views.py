@@ -13,6 +13,7 @@ from .models import User, Position, Module, UserModuleAccess
 from apps.tramite.models import UserCaseAccess
 from .permissions import IsAdminRole
 from django.db import transaction
+from apps.tramite.emails import send_account_created_email
 import requests
 
 class PositionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -154,6 +155,49 @@ class UserViewSet(viewsets.ModelViewSet):
             "cases": [case.id for case in cases] if restricted else []
         })
 
+    @action(detail=False, methods=["post"], url_path="notify-staff")
+    def notify_staff(self, request):
+
+        # Obtener todos los funcionarios
+        users = User.objects.filter(
+            role=User.Role.STAFF
+        ).order_by("last_name", "first_name")
+
+        total = users.count()
+
+        sent = 0
+        failed = 0
+        skipped = 0
+
+        for user in users:
+
+            # Verificar que tenga correo
+            if not user.email:
+                skipped += 1
+                continue
+
+            temporary_password = user.document_number
+
+            try:
+
+                # Enviar correo HTML
+                send_account_created_email(user, temporary_password)
+                sent += 1
+
+            except Exception:
+
+                failed += 1
+
+        return Response({
+
+            "message": "Proceso de notificación finalizado.",
+            "total": total,
+            "sent": sent,
+            "failed": failed,
+            "skipped": skipped
+
+        }, status=status.HTTP_200_OK)
+
 class MeView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
@@ -213,11 +257,7 @@ class ChangePasswordView(APIView):
         serializer.is_valid(raise_exception=True)
 
         user = request.user
-
-        user.set_password(
-            serializer.validated_data["new_password"]
-        )
-
+        user.set_password(serializer.validated_data["new_password"])
         user.save(update_fields=["password"])
 
         return Response({

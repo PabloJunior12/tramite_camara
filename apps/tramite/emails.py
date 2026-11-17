@@ -100,6 +100,7 @@ def send_procedure_rejected_email(procedure):
         return False
 
 def send_procedure_received_email(procedure):
+
     recipient = procedure.sender_email
 
     if not recipient:
@@ -143,3 +144,42 @@ def send_procedure_received_email(procedure):
             procedure.pk,
         )
         return False
+
+def send_account_created_email(user, temporary_password):
+
+    context = {
+        "full_name": f"{user.first_name} {user.last_name}",
+        "username": user.username,
+        "temporary_password": temporary_password,
+        "login_url": f"{settings.FRONTEND_URL}",
+    }
+
+    html_content = render_to_string(
+        "emails/user/account_created.html",
+        context
+    )
+
+    text_content = f"""
+    Hola {user.first_name},
+
+    Tu cuenta ha sido creada satisfactoriamente.
+
+    Usuario: {user.username}
+    Contraseña temporal: {temporary_password}
+
+    Ingresa al sistema:
+    {context['login_url']}
+
+    Recuerda cambiar tu contraseña al ingresar por primera vez.
+    """
+
+    email = EmailMultiAlternatives(
+        subject="Bienvenido al Sistema de Gestión Arbitral",
+        body=text_content,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+
+    email.attach_alternative(html_content, "text/html")
+
+    email.send(fail_silently=False)
