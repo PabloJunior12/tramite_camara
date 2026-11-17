@@ -19287,9 +19287,20 @@
         "pk": 10,
         "fields": {
             "category": "COURT",
+            "name": "Secretaría Arbitral",
+            "code": "ARBITRAL_SECRETARY",
+            "order": 6,
+            "is_active": true
+        }
+    },
+    {
+        "model": "user.position",
+        "pk": 11,
+        "fields": {
+            "category": "COURT",
             "name": "Asistente de Secretaría",
             "code": "SECRETARY_ASSISTANT",
-            "order": 6,
+            "order": 7,
             "is_active": true
         }
     }

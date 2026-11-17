@@ -17,10 +17,12 @@ from django.db.models import (
     Q,
     Sum,
     Value,
-    Prefetch
+    Prefetch,
+    Count
+    
 )
 from django.db.models.functions import TruncMonth, Coalesce
-
+from rest_framework.filters import SearchFilter
 from .models import Company, Procedure, ArbitrationCase, CaseSequence, Subject, CaseParty, CaseFile, CaseMeeting, CasePartyLawyer, CaseBudget, CasePayment, Specialty, ProceduralStage, CaseLocation, CaseObservation, CaseNotification
 from .serializers import CompanySerializer, ProcedureCreateSerializer, ArbitrationCaseListSerializer, FinancePaymentSerializer, UpdateCasePartySerializer, SubjectSerializer, ProcedureListSerializer, CaseMeetingSerializer, ArbitrationCaseSerializer, CaseFileSerializer, CreateCasePartySerializer, CasePartyLawyerSerializer, AssignLawyerSerializer, CasePaymentVoidSerializer, CaseBudgetReadSerializer, CaseBudgetWriteSerializer, CasePaymentReadSerializer, CasePaymentCreateSerializer, SpecialtySerializer, ProceduralStageSerializer, CaseLocationSerializer, CaseObservationSerializer, CaseNotificationSerializer
 from .utils import ProcedureFilter
@@ -203,11 +205,49 @@ class ProcedureViewSet(viewsets.ModelViewSet):
             "email_sent": email_sent,
         })
 
+    @action(detail=False, methods=["get"], url_path="dashboard")
+    def dashboard(self, request):
+
+        queryset = Procedure.objects.filter(
+            is_annulled=False
+        )
+
+        statistics = queryset.aggregate(
+
+            # Total de solicitudes
+            total=Count("id"),
+
+            # Solicitudes recibidas
+            received=Count(
+                "id",
+                filter=Q(status=Procedure.Status.RECEIVED)
+            ),
+
+            # Solicitudes aprobadas
+            approved=Count(
+                "id",
+                filter=Q(status=Procedure.Status.APPROVED)
+            ),
+
+            # Solicitudes rechazadas
+            rejected=Count(
+                "id",
+                filter=Q(status=Procedure.Status.REJECTED)
+            ),
+
+        )
+
+        return Response(statistics)
+
 class ArbitrationCaseViewSet(viewsets.ModelViewSet):
  
     serializer_class = ArbitrationCaseSerializer
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ["code"]
+
+    search_fields = [
+        "code",
+    ]
 
     def get_authenticators(self):
         if self.request.method == "PATCH":
@@ -279,6 +319,45 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
         self.perform_update(serializer)
 
         return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="dashboard")
+    def dashboard(self, request):
+
+        queryset = self.get_queryset()
+
+        statistics = queryset.aggregate(
+
+            # Total de expedientes
+            total=Count("id"),
+
+            # Expedientes activos / en trámite
+            active=Count(
+                "id",
+                filter=Q(status=ArbitrationCase.Status.ACTIVE)
+            ),
+
+            # Expedientes concluidos
+            closed=Count(
+                "id",
+                filter=Q(status=ArbitrationCase.Status.CLOSED)
+            ),
+
+            # Pendientes de asignación de árbitro
+            pending_arbitrator=Count(
+                "id",
+                filter=Q(arbitrator__isnull=True)
+            )
+
+        )
+
+        return Response({
+
+            "total": statistics["total"],
+            "active": statistics["active"],
+            "pending_arbitrator": statistics["pending_arbitrator"],
+            "closed": statistics["closed"]
+
+        })
 
     @action(detail=False, methods=["get"], url_path=r"by-code/(?P<code>[^/.]+)")
     def by_code(self, request, code=None):
