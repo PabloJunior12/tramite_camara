@@ -155,48 +155,60 @@ class UserViewSet(viewsets.ModelViewSet):
             "cases": [case.id for case in cases] if restricted else []
         })
 
-    @action(detail=False, methods=["post"], url_path="notify-staff")
-    def notify_staff(self, request):
+    @action(detail=True, methods=["post"], url_path="notify")
+    def notify_staff(self, request, pk=None):
 
-        # Obtener todos los funcionarios
-        users = User.objects.filter(
-            role=User.Role.STAFF
-        ).order_by("last_name", "first_name")
+        try:
 
-        total = users.count()
+            user = User.objects.get(
+                pk=pk,
+                role=User.Role.STAFF
+            )
 
-        sent = 0
-        failed = 0
-        skipped = 0
+        except User.DoesNotExist:
 
-        for user in users:
+            return Response(
+                {"error": "Funcionario no encontrado."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-            # Verificar que tenga correo
-            if not user.email:
-                skipped += 1
-                continue
+        # Validar correo
+        if not user.email:
 
-            temporary_password = user.document_number
+            return Response(
+                {"error": "El funcionario no tiene correo registrado."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-            try:
+        # Validar documento
+        if not user.document_number:
 
-                # Enviar correo HTML
-                send_account_created_email(user, temporary_password)
-                sent += 1
+            return Response(
+                {"error": "El funcionario no tiene número de documento registrado."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-            except Exception:
+        temporary_password = user.document_number
 
-                failed += 1
+        try:
 
-        return Response({
+            # Enviar correo HTML
+            send_account_created_email(
+                user,
+                temporary_password
+            )
 
-            "message": "Proceso de notificación finalizado.",
-            "total": total,
-            "sent": sent,
-            "failed": failed,
-            "skipped": skipped
+            return Response({
+                "message": "Credenciales enviadas correctamente.",
+                "username": user.username
+            })
 
-        }, status=status.HTTP_200_OK)
+        except Exception:
+
+            return Response(
+                {"error": "No se pudo enviar el correo de credenciales."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class MeView(APIView):
 
