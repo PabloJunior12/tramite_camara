@@ -33,7 +33,6 @@ class ModuleViewSet(viewsets.ReadOnlyModelViewSet):
 class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all()
-    permission_classes = [IsAdminRole]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["role"]
 
