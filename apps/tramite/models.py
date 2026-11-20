@@ -88,6 +88,10 @@ class District(models.Model):
     province = models.ForeignKey(Province,on_delete=models.CASCADE)
     active = models.BooleanField(default=True, verbose_name='Activo')
 
+class SystemConfiguration(models.Model):
+
+    automatic_case_sequence = models.BooleanField(default=False)
+
 class Company(models.Model):
 
     name = models.CharField(max_length=255, verbose_name="Nombre de la empresa")
@@ -96,6 +100,7 @@ class Company(models.Model):
     phone = models.CharField(max_length=20, verbose_name="Teléfono", null=True, blank=True)
     email = models.EmailField(verbose_name="Correo electrónico", null=True, blank=True)
     logo = models.ImageField(upload_to="logos/", verbose_name="Logo", null=True, blank=True)
+
 
     def __str__(self):
         return self.name
@@ -706,6 +711,7 @@ class CaseBudget(models.Model):
         return f"Presupuesto de {self.case.code}"
 
 class CasePayment(models.Model):
+
     class Concept(models.TextChoices):
         ADMINISTRATIVE_EXPENSES = "Gastos administrativos", "Gastos administrativos"
         ARBITRATION_REQUEST_COST = (

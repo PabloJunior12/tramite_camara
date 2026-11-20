@@ -6,7 +6,7 @@ from django.db import transaction
 
 from apps.user.models import User
 from decimal import Decimal
-from .models import Company, GlobalBackup, ProceduralStage, Subject, CaseLocation, CaseNotification, SystemBackup, CaseObservation, Specialty, Procedure, ProcedureFile, ArbitrationCase, CaseSequence, CaseParty, CaseFile, CaseMeeting, CasePartyLawyer, CasePayment, CaseBudget
+from .models import Company, GlobalBackup, ProceduralStage, Subject, CaseLocation, SystemConfiguration, CaseNotification, SystemBackup, CaseObservation, Specialty, Procedure, ProcedureFile, ArbitrationCase, CaseSequence, CaseParty, CaseFile, CaseMeeting, CasePartyLawyer, CasePayment, CaseBudget
 from .utils import generate_procedure_code
 from .services import create_arbitration_case
 from django.utils import timezone
@@ -474,7 +474,6 @@ class ArbitrationCaseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
-            "code",
             "source_procedure",
             "created_by",
             "status",
@@ -483,21 +482,36 @@ class ArbitrationCaseSerializer(serializers.ModelSerializer):
             "notifications",
             "observations",
         ]
+
     @transaction.atomic
     def create(self, validated_data):
         user = self.context["request"].user
-        year = timezone.localdate().year
 
-        sequence, _ = CaseSequence.objects.get_or_create(
-            year=year,
-            defaults={"last_number": 0},
-        )
-        sequence = CaseSequence.objects.select_for_update().get(pk=sequence.pk)
-        sequence.last_number += 1
-        sequence.save(update_fields=["last_number"])
+        config = SystemConfiguration.objects.first()
+
+        if config and config.automatic_case_sequence:
+
+            year = timezone.localdate().year
+
+            sequence, _ = CaseSequence.objects.get_or_create(
+                year=year,
+                defaults={"last_number": 0},
+            )
+
+            sequence = CaseSequence.objects.select_for_update().get(
+                pk=sequence.pk
+            )
+
+            sequence.last_number += 1
+            sequence.save(update_fields=["last_number"])
+
+            code = f"{sequence.last_number:03d}-{year}-CSA"
+
+        else:
+            code = validated_data.pop("code")
 
         return ArbitrationCase.objects.create(
-            code=f"{sequence.last_number:03d}-{year}-CSA",
+            code=code,
             created_by=user,
             **validated_data,
         )
@@ -715,7 +729,7 @@ class AssignLawyerSerializer(serializers.Serializer):
         )
 
 class CasePaymentReadSerializer(serializers.ModelSerializer):
-    
+
     receipt = serializers.FileField(read_only=True)
 
     class Meta:

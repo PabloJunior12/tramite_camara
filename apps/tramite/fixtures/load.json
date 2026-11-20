@@ -19125,5 +19125,12 @@
             "order": 7,
             "is_active": true
         }
+    },
+    {
+        "model": "tramite.SystemConfiguration",
+        "pk": 1,
+        "fields": {
+            "automatic_case_sequence": false
+        }
     }
 ]
