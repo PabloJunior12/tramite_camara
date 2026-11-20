@@ -100,67 +100,6 @@ class Company(models.Model):
     def __str__(self):
         return self.name
 
-class Document(models.Model):
-
-    code = models.CharField(max_length=2, unique=True)
-    name = models.CharField(max_length=100)
- 
-    def __str__(self):
-        return self.name
-
-class Area(models.Model):
-
-    TYPE_CHOICES = [
-        ("TE", "Tramite externo"),
-        ("TI", "Tramite interno"),
-        ("TV", "Tramite virtual"),
-    ]
-
-    name = models.CharField(max_length=100)
-    code = models.CharField(max_length=3, unique=True, editable=False)
-    state = models.BooleanField(default=True)
-    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default="TI")
-    initials = models.CharField(max_length=50, null=True, blank=True)
-
-    def save(self, *args, **kwargs):
-
-        if not self.code:
-
-            last= Area.objects.order_by('-id').first()
-
-            next_number = 1 if not last else int(last.code) + 1
-
-            self.code = str(next_number).zfill(3)
-
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-
-        return self.name
-
-class UserArea(models.Model):
-
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='user_areas'
-    )
-    area = models.ForeignKey(
-        Area,
-        on_delete=models.CASCADE,
-        related_name='area_users'
-    )
-
-    class Meta:
-        unique_together = ('user', 'area')
-
-    def save(self, *args, **kwargs):
-        if self.user.agency_id != self.area.agency_id:
-            raise ValueError(
-                "El usuario no pertenece a la agencia del área"
-            )
-        super().save(*args, **kwargs)
-
 class Specialty(models.Model):
 
     name = models.CharField(
@@ -302,12 +241,6 @@ class Procedure(models.Model):
     # Usuario que registra la presentación
     # --------------------------------------------------------
 
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="created_procedures",
-    )
-
     created_at = models.DateTimeField(
         auto_now_add=True,
         db_index=True,
@@ -393,12 +326,6 @@ class ProcedureFile(models.Model):
         related_name="files",
     )
 
-    uploaded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="uploaded_procedure_files",
-    )
-
     file = models.FileField(
         upload_to=procedure_file_path,
     )
@@ -428,72 +355,6 @@ class ProcedureFile(models.Model):
 
     def __str__(self):
         return self.filename
-
-class ProcedureHistory(models.Model):
-
-    class Action(models.TextChoices):
-        RECEIVED = "RECEIVED", "Solicitud recibida"
-        REVIEW_STARTED = "REVIEW_STARTED", "Revisión iniciada"
-        OBSERVED = "OBSERVED", "Solicitud observada"
-        RESUBMITTED = "RESUBMITTED", "Solicitud subsanada"
-        APPROVED = "APPROVED", "Solicitud aprobada"
-        REJECTED = "REJECTED", "Solicitud rechazada"
-        REGISTERED = "REGISTERED", "Expediente registrado"
-        ANNULLED = "ANNULLED", "Solicitud anulada"
-
-    procedure = models.ForeignKey(
-        Procedure,
-        on_delete=models.CASCADE,
-        related_name="history",
-    )
-
-    action = models.CharField(
-        max_length=20,
-        choices=Action.choices,
-        db_index=True,
-    )
-
-    previous_status = models.CharField(
-        max_length=20,
-        choices=Procedure.Status.choices,
-        blank=True,
-        default="",
-    )
-
-    new_status = models.CharField(
-        max_length=20,
-        choices=Procedure.Status.choices,
-    )
-
-    performed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="procedure_history_actions",
-    )
-
-    comment = models.TextField(
-        blank=True,
-        default="",
-    )
-
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        db_index=True,
-    )
-
-    class Meta:
-
-        verbose_name = "Historial de procedimiento"
-        verbose_name_plural = "Historial de procedimientos"
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return (
-            f"{self.procedure_id} - "
-            f"{self.get_action_display()}"
-        )
 
 # MODELOS DEL EXPEDIENTE
 

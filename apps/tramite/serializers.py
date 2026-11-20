@@ -6,7 +6,7 @@ from django.db import transaction
 
 from apps.user.models import User
 from decimal import Decimal
-from .models import Company, GlobalBackup, ProceduralStage, Subject, CaseLocation, CaseNotification, SystemBackup, CaseObservation, Specialty, Procedure, ProcedureFile, ProcedureHistory, ArbitrationCase, CaseSequence, CaseParty, CaseFile, CaseMeeting, CasePartyLawyer, CasePayment, CaseBudget
+from .models import Company, GlobalBackup, ProceduralStage, Subject, CaseLocation, CaseNotification, SystemBackup, CaseObservation, Specialty, Procedure, ProcedureFile, ArbitrationCase, CaseSequence, CaseParty, CaseFile, CaseMeeting, CasePartyLawyer, CasePayment, CaseBudget
 from .utils import generate_procedure_code
 from .services import create_arbitration_case
 from django.utils import timezone
@@ -123,16 +123,6 @@ class ProcedureListSerializer(serializers.ModelSerializer):
         model = Procedure
         fields = '__all__'
 
-    def get_origin_user(self, obj):
-
-        if not obj.created_by:
-            return None
-
-        return {
-            "id": obj.created_by.id,
-            "name": f"{obj.created_by.first_name} {obj.created_by.last_name or ''}".strip()
-        }
-
 class ProcedureCreateSerializer(serializers.Serializer):
 
     # Documento
@@ -140,39 +130,16 @@ class ProcedureCreateSerializer(serializers.Serializer):
     request_detail = serializers.CharField()
 
     # Remitente
-    sender_dni = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        max_length=20,
-    )
+    sender_dni = serializers.CharField(required=False,allow_blank=True,max_length=20)
     sender_name = serializers.CharField(max_length=255)
-    sender_representante = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        max_length=255,
-    )
-    sender_phone = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        max_length=30,
-    )
-    sender_email = serializers.EmailField(
-        required=False,
-        allow_blank=True,
-    )
+    sender_representante = serializers.CharField(required=False,allow_blank=True,max_length=255)
+    sender_phone = serializers.CharField(required=False,allow_blank=True,max_length=30)
+    sender_email = serializers.EmailField(required=False,allow_blank=True)
 
     # Adjuntos
-    enlaceArchivos = serializers.URLField(
-        required=False,
-        allow_blank=True,
-        allow_null=True,
-        max_length=2048,
-    )
+    enlaceArchivos = serializers.URLField(required=False, allow_blank=True, allow_null=True, max_length=2048)
 
-    modoAdjuntos = serializers.ChoiceField(
-        choices=Procedure.AttachmentMode.choices,
-        required=True,
-    )
+    modoAdjuntos = serializers.ChoiceField(choices=Procedure.AttachmentMode.choices, required=True)
 
     # Tipo de presentación
     is_virtual = serializers.BooleanField(default=True)
@@ -213,21 +180,9 @@ class ProcedureCreateSerializer(serializers.Serializer):
 
             is_virtual = validated_data.get("is_virtual",False)
 
-            # Usuario autenticado que registra el trámite.
-            user = request.user
-
-            if is_virtual:
-
-               user = User.objects.first()
-
-            else:
-
-               user = request.user
-
             # 1. Crear el trámite con estado inicial.
             procedure = Procedure.objects.create(
                 **validated_data,
-                created_by=user,
                 code=None,
                 status=Procedure.Status.RECEIVED,
             )
@@ -238,7 +193,6 @@ class ProcedureCreateSerializer(serializers.Serializer):
                 ProcedureFile.objects.create(
                     procedure=procedure,
                     file=file,
-                    uploaded_by=user,
                     original_name=file.name,
                 )
 
@@ -249,16 +203,7 @@ class ProcedureCreateSerializer(serializers.Serializer):
             procedure.save(
                 update_fields=["code"]
             )
-            # 5. Guardar el historial del trámite.
-            ProcedureHistory.objects.create(
-                procedure=procedure,
-                action=ProcedureHistory.Action.RECEIVED,
-                previous_status="",
-                new_status=procedure.status,
-                performed_by=user,
-                comment="Trámite recibido y registrado.",
-            )
-
+ 
             return procedure
 
         except serializers.ValidationError:
@@ -497,6 +442,7 @@ class ArbitrationCaseSerializer(serializers.ModelSerializer):
     observations = CaseObservationSerializer(many=True, read_only=True)
 
     class Meta:
+
         model = ArbitrationCase
         fields = [
             "id",
@@ -790,6 +736,7 @@ class CasePaymentReadSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 class CaseBudgetReadSerializer(serializers.ModelSerializer):
+
     total_paid = serializers.DecimalField(
         max_digits=14,
         decimal_places=2,
