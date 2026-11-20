@@ -348,30 +348,29 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
 
         })
 
-    @action(detail=False, methods=["get"], url_path=r"by-code/(?P<code>[^/.]+)")
-    def by_code(self, request, code=None):
-        expediente = get_object_or_404(self.get_queryset(), code=code)
-        serializer = self.get_serializer(expediente)
-        return Response(serializer.data)
+    @action(detail=False, methods=["get"], url_path="by-code")
+    def by_code(self, request):
 
-    @action(detail=False, methods=["get"], url_path=r"locate/(?P<code>[^/.]+)", url_name="locate")
-    def locate(self, request, code=None):
+        code = request.query_params.get("code")
+
+        if not code:
+            return Response(
+                {"detail": "Debe proporcionar el código del expediente."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             expediente = self.get_queryset().get(code=code)
+
         except ArbitrationCase.DoesNotExist:
             return Response(
-                {
-                    "detail": "No se encontró un expediente con ese código."
-                },
-                status=status.HTTP_404_NOT_FOUND,
+                {"detail": "No se encontró un expediente con ese código."},
+                status=status.HTTP_404_NOT_FOUND
             )
 
         serializer = self.get_serializer(expediente)
 
-        return Response(
-            serializer.data,
-            status=status.HTTP_200_OK,
-        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="close")
     def close_case(self, request, pk=None):
