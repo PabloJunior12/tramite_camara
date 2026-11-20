@@ -12,6 +12,13 @@ def get_allowed_modules(user):
             "children"
         ).order_by("order", "name")
 
+    # APPLICANT: acceso exclusivo a Gestión arbitral.
+    if user.role == User.Role.APPLICANT:
+        return Module.objects.filter(
+            code="gestion-arbitral",
+            parent__isnull=True
+        ).order_by("order", "name")
+
     # Módulos exclusivos de administradores.
     restricted_codes = [
         "usuarios-permisos",

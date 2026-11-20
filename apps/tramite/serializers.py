@@ -715,6 +715,7 @@ class AssignLawyerSerializer(serializers.Serializer):
         )
 
 class CasePaymentReadSerializer(serializers.ModelSerializer):
+    
     receipt = serializers.FileField(read_only=True)
 
     class Meta:
@@ -726,6 +727,7 @@ class CasePaymentReadSerializer(serializers.ModelSerializer):
             "concept",
             "reference",
             "receipt",
+            "invoice",
             "status",
             "void_reason",
             "voided_at",

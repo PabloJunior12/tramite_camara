@@ -736,6 +736,12 @@ class CasePayment(models.Model):
         blank=True,
     )
 
+    invoice = models.FileField(
+        upload_to="case_payments/invoice/",
+        null=True,
+        blank=True,
+    )
+
     status = models.CharField(
         max_length=10,
         choices=Status.choices,

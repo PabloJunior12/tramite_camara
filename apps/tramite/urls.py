@@ -1,6 +1,6 @@
 from rest_framework import routers
 from django.urls import path
-from .views import CompanyViewSet, ProcedureViewSet, ArbitrationDashboardView, GlobalBackupView, BackupListView, BackupCreateView, BackupDownloadView, GlobalBackupDownloadView, SubjectViewSet, ArbitrationCaseListView, FinancePaymentsExcelAPIView, FinanceAPIView, SpecialtyViewSet, UpdateCasePartyView, DeleteCasePartyView, AccountingDashboardView, PaymentsReportPDFView, ProceduralStageViewSet, CaseLocationViewSet, ArbitrationCaseViewSet, CreateCasePartyView, ArbitrationCaseFileViewSet, ArbitrationCaseMeetingViewSet, ArbitrationCaseObservationViewSet, ArbitrationCaseNotificationViewSet, CasePartyLawyerListCreateAPIView, CaseBudgetAPIView, CasePaymentListCreateAPIView, CasePaymentVoidAPIView
+from .views import CompanyViewSet, ProcedureViewSet, ArbitrationDashboardView, GlobalBackupView, CasePaymentReceiptAPIView, BackupListView, BackupCreateView, BackupDownloadView, GlobalBackupDownloadView, SubjectViewSet, ArbitrationCaseListView, FinancePaymentsExcelAPIView, FinanceAPIView, SpecialtyViewSet, UpdateCasePartyView, DeleteCasePartyView, AccountingDashboardView, PaymentsReportPDFView, ProceduralStageViewSet, CaseLocationViewSet, ArbitrationCaseViewSet, CreateCasePartyView, ArbitrationCaseFileViewSet, ArbitrationCaseMeetingViewSet, ArbitrationCaseObservationViewSet, ArbitrationCaseNotificationViewSet, CasePartyLawyerListCreateAPIView, CaseBudgetAPIView, CasePaymentListCreateAPIView, CasePaymentVoidAPIView
 
 router = routers.DefaultRouter()
 router.register("company", CompanyViewSet)
@@ -60,6 +60,7 @@ urlpatterns = [
     path("cases/<int:case_id>/budget/",CaseBudgetAPIView.as_view(),name="case-budget"),
     path("cases/<int:case_id>/payments/",CasePaymentListCreateAPIView.as_view(),name="case-payments"),
     path("cases/<int:case_id>/payments/<int:payment_id>/void/", CasePaymentVoidAPIView.as_view(), name="case-payment-void"),
+    path("cases/<int:case_id>/payments/<int:payment_id>/invoice/", CasePaymentReceiptAPIView.as_view(), name="case-payment-receipt"),
 
     path("reports/payments/pdf/", PaymentsReportPDFView.as_view(), name="payments-report-pdf"),
 
@@ -68,6 +69,7 @@ urlpatterns = [
     path("cases/<int:case_id>/parties/create-user/", CreateCasePartyView.as_view(), name="case-party-create-user"),
     path("cases/<int:case_id>/parties/<int:case_party_id>/", UpdateCasePartyView.as_view(), name="case-party-detail"),
     path("cases/<int:case_id>/parties/<int:case_party_id>/delete/", DeleteCasePartyView.as_view(), name="case-party-delete"),
+
 
     path("finanzas/", FinanceAPIView.as_view(), name="finanzas"),
     path("finanzas/reporte-excel/", FinancePaymentsExcelAPIView.as_view(), name="finanzas-reporte-excel"),

@@ -252,16 +252,6 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
         "code",
     ]
 
-    def get_authenticators(self):
-        if self.request.method == "PATCH":
-            return []
-        return super().get_authenticators()
-
-    def get_permissions(self):
-        if self.request.method == "PATCH":
-            return [AllowAny()]
-        return super().get_permissions()
-
     def get_queryset(self):
 
         queryset = (
@@ -313,11 +303,7 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
 
-        serializer = self.get_serializer(
-            instance,
-            data=request.data,
-            partial=partial,
-        )
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
@@ -435,15 +421,14 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
                 case.parties
                 .filter(role=role)
                 .select_related("user")
-                .order_by("user__email")
             )
 
             return [
                 {
-                    "name": party.user.get_full_name().strip() or party.user.email,
+                    "name": party.user.get_full_name().strip(),
                     "role": party.get_role_display(),
-                    "username": party.user.email,
-                    "email": party.user.email,
+                    "username": party.user.username,
+                    "email": party.user.email or "",
                 }
                 for party in parties
             ]
@@ -459,7 +444,7 @@ class ArbitrationCaseViewSet(viewsets.ModelViewSet):
                     CaseParty.Role.CLAIMANT
                 ),
                 "initial_password": "12345678",
-                "system_url": "http://localhost:4200/",
+                "system_url": settings.FRONTEND_URL
             },
         )
 
@@ -1000,6 +985,63 @@ class CasePaymentVoidAPIView(APIView):
                 payment,
                 context={"request": request},
             ).data
+        )
+
+class CasePaymentReceiptAPIView(APIView):
+    
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, case_id, payment_id):
+
+        payment = get_object_or_404(
+            CasePayment,
+            pk=payment_id,
+            budget__case_id=case_id,
+        )
+
+        if payment.status == CasePayment.Status.VOIDED:
+            raise ValidationError({
+                "detail": "No puedes adjuntar comprobantes a un pago anulado."
+            })
+
+        file = request.FILES.get("invoice")
+
+        if not file:
+            raise ValidationError({
+                "invoice": "Debes adjuntar un comprobante."
+            })
+
+        allowed_types = [
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+        ]
+
+        if file.content_type not in allowed_types:
+            raise ValidationError({
+                "invoice": "Formato no permitido."
+            })
+
+        if file.size > 5 * 1024 * 1024:
+            raise ValidationError({
+                "invoice": "El archivo no debe superar los 5 MB."
+            })
+
+        payment.invoice = file
+        payment.updated_by = request.user
+
+        payment.save(update_fields=[
+            "invoice",
+            "updated_by",
+            "updated_at",
+        ])
+
+        return Response(
+            CasePaymentReadSerializer(
+                payment,
+                context={"request": request},
+            ).data,
+            status=status.HTTP_200_OK,
         )
 
 class PaymentsReportPDFView(APIView):
