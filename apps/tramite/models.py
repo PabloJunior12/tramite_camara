@@ -30,6 +30,7 @@ class GlobalBackup(models.Model):
         blank=True,
         help_text="Usuario o CRON"
     )
+    error_message = models.TextField(null=True,blank=True)
 
     def __str__(self):
         

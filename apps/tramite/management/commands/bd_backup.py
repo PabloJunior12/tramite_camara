@@ -59,7 +59,20 @@ class Command(BaseCommand):
                 self.style.SUCCESS("Backup global generado correctamente")
             )
 
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
+
+            error = e.stderr or str(e)
+
             backup.status = "failed"
+            backup.error_message = error
             backup.save()
-            self.stderr.write(str(e))
+
+            self.stderr.write(self.style.ERROR(error))
+
+        except Exception as e:
+
+            backup.status = "failed"
+            backup.error_message = str(e)
+            backup.save()
+
+            self.stderr.write(self.style.ERROR(str(e)))
