@@ -9,6 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
 from django.utils import timezone
+from django.core.management import call_command
 from django.contrib.auth import get_user_model
 from django.db.models import (
     DecimalField,
@@ -23,30 +24,32 @@ from django.db.models import (
 )
 from django.db.models.functions import TruncMonth, Coalesce
 from rest_framework.filters import SearchFilter
-from .models import Company, Procedure, ArbitrationCase, CaseSequence, Subject, CaseParty, CaseFile, CaseMeeting, CasePartyLawyer, CaseBudget, CasePayment, Specialty, ProceduralStage, CaseLocation, CaseObservation, CaseNotification
-from .serializers import CompanySerializer, ProcedureCreateSerializer, ArbitrationCaseListSerializer, FinancePaymentSerializer, UpdateCasePartySerializer, SubjectSerializer, ProcedureListSerializer, CaseMeetingSerializer, ArbitrationCaseSerializer, CaseFileSerializer, CreateCasePartySerializer, CasePartyLawyerSerializer, AssignLawyerSerializer, CasePaymentVoidSerializer, CaseBudgetReadSerializer, CaseBudgetWriteSerializer, CasePaymentReadSerializer, CasePaymentCreateSerializer, SpecialtySerializer, ProceduralStageSerializer, CaseLocationSerializer, CaseObservationSerializer, CaseNotificationSerializer
+from .models import Company, Procedure, ArbitrationCase, CaseSequence, SystemBackup, GlobalBackup, Subject, CaseParty, CaseFile, CaseMeeting, CasePartyLawyer, CaseBudget, CasePayment, Specialty, ProceduralStage, CaseLocation, CaseObservation, CaseNotification
+from .serializers import CompanySerializer, GlobalBackupSerializer, SystemBackupSerializer, ProcedureCreateSerializer, ArbitrationCaseListSerializer, FinancePaymentSerializer, UpdateCasePartySerializer, SubjectSerializer, ProcedureListSerializer, CaseMeetingSerializer, ArbitrationCaseSerializer, CaseFileSerializer, CreateCasePartySerializer, CasePartyLawyerSerializer, AssignLawyerSerializer, CasePaymentVoidSerializer, CaseBudgetReadSerializer, CaseBudgetWriteSerializer, CasePaymentReadSerializer, CasePaymentCreateSerializer, SpecialtySerializer, ProceduralStageSerializer, CaseLocationSerializer, CaseObservationSerializer, CaseNotificationSerializer
 from .utils import ProcedureFilter
 from .services import create_arbitration_case
 from django.core.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
 User = get_user_model()
-from datetime import date
+from datetime import date, datetime
 from collections import defaultdict
 from decimal import Decimal
 from django.utils.dateparse import parse_date
 from django.template.loader import render_to_string
-from django.http import HttpResponse
+from django.http import HttpResponse, Http404, FileResponse
 from weasyprint import HTML
 from .emails import send_procedure_received_email, send_procedure_rejected_email, send_procedure_approved_email
 
+import subprocess
+import os
+import tarfile
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 ZERO = Value(Decimal("0.00"), output_field=DecimalField(max_digits=14, decimal_places=2))
-
 MONEY_FIELD = DecimalField(max_digits=14, decimal_places=2)
 ZERO_MONEY = Value(Decimal("0.00"), output_field=MONEY_FIELD)
 
@@ -1340,6 +1343,7 @@ class FinanceAPIView(APIView):
         })
 
 class FinancePaymentsExcelAPIView(APIView):
+    
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1454,3 +1458,189 @@ class FinancePaymentsExcelAPIView(APIView):
                 return nombre
 
         return str(user)
+
+class ArbitrationDashboardView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        now = timezone.now()
+        today = timezone.localdate()
+
+        # ==================================
+        # 1. EXPEDIENTES ACTIVOS
+        # ==================================
+
+        active_cases = ArbitrationCase.objects.filter(
+            status=ArbitrationCase.Status.ACTIVE
+        ).count()
+
+        # ==================================
+        # 2. EXPEDIENTES VENCIDOS
+        # ==================================
+
+        overdue_cases = ArbitrationCase.objects.filter(
+            status=ArbitrationCase.Status.ACTIVE,
+            date_of_due__lt=today
+        ).count()
+
+        # ==================================
+        # 3. OBSERVACIONES REGISTRADAS
+        # ==================================
+
+        observations = CaseObservation.objects.count()
+
+        # ==================================
+        # 4. AUDIENCIAS
+        # ==================================
+
+        meetings = CaseMeeting.objects.filter(
+            scheduled_at__gte=now
+        )
+
+        total_meetings = meetings.count()
+
+        # Audiencias de esta semana
+        week_end = today + timezone.timedelta(days=7)
+
+        weekly_meetings = meetings.filter(
+            scheduled_at__date__lte=week_end
+        ).count()
+
+        # Próximas tres audiencias
+        upcoming_meetings = meetings.select_related(
+            "case"
+        ).order_by(
+            "scheduled_at"
+        )[:3]
+
+        meetings_data = [
+            {
+                "id": meeting.id,
+                "subject": meeting.subject,
+                "case_code": meeting.case.code,
+                "scheduled_at": meeting.scheduled_at,
+                "link": meeting.link,
+            }
+            for meeting in upcoming_meetings
+        ]
+
+        # ==================================
+        # RESPUESTA
+        # ==================================
+
+        return Response({
+
+            "summary": {
+                "active_cases": active_cases,
+                "pending_cases": overdue_cases,
+                "observations": observations,
+                "upcoming_meetings": total_meetings,
+                "weekly_meetings": weekly_meetings,
+            },
+
+            "upcoming_meetings": meetings_data,
+
+        })
+
+# BACKUP
+
+class GlobalBackupView(APIView):
+
+    def get(self, request):
+
+        backups = GlobalBackup.objects.all().order_by("-created_at")
+        serializer = GlobalBackupSerializer(backups, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+
+        user = request.user.username if request.user.is_authenticated else "manual"
+
+        call_command("bd_backup", user=user)
+
+        return Response( {"message": "Backup global iniciado"}, status=status.HTTP_201_CREATED)
+       
+class GlobalBackupDownloadView(APIView):
+
+    def get(self, request, backup_id):
+
+        try:
+            backup = GlobalBackup.objects.get(id=backup_id)
+
+        except GlobalBackup.DoesNotExist:
+
+            raise Http404("Backup no encontrado")
+
+        if not os.path.exists(backup.file_path):
+
+            raise Http404("Archivo no existe en el servidor")
+
+        response = FileResponse(
+            open(backup.file_path, "rb"),
+            as_attachment=True,
+            filename=backup.file_name
+        )
+
+        return response
+
+class BackupCreateView(APIView):
+
+    def post(self, request):
+
+        # Carpeta origen: todo MEDIA
+        source = settings.MEDIA_ROOT
+
+        # Nombre del backup
+        filename = f"media_manual_{datetime.now().strftime('%Y%m%d_%H%M%S')}.tar.gz"
+
+        # Carpeta destino
+        backup_dir = os.path.join(settings.BACKUP_ROOT, "manual")
+        os.makedirs(backup_dir, exist_ok=True)
+
+        destination = os.path.join(backup_dir, filename)
+
+        # Crear backup de toda la carpeta media
+        with tarfile.open(destination, "w:gz") as tar:
+            tar.add(source, arcname="media")
+
+        # Tamaño del archivo
+        size = os.path.getsize(destination)
+
+        # Registrar backup
+        backup = SystemBackup.objects.create(
+            file_path=destination,
+            size=size,
+            backup_type="manual"
+        )
+
+        return Response({
+            "message": "Backup de MEDIA creado correctamente",
+            "backup_id": backup.id,
+            "filename": filename,
+            "size": size
+        })
+    
+class BackupListView(generics.ListAPIView):
+
+    queryset = SystemBackup.objects.all()
+    serializer_class = SystemBackupSerializer
+
+class BackupDownloadView(APIView):
+
+    def get(self, request, pk):
+
+        try:
+            backup = SystemBackup.objects.get(pk=pk)
+        except SystemBackup.DoesNotExist:
+            raise Http404
+
+        if not os.path.exists(backup.file_path):
+            raise Http404("Archivo no existe")
+
+        return FileResponse(
+            open(backup.file_path, "rb"),
+            as_attachment=True,
+            filename=backup.filename
+        )

@@ -11,6 +11,30 @@ from pathlib import Path
 
 User = settings.AUTH_USER_MODEL
 
+class GlobalBackup(models.Model):
+
+    STATUS_CHOICES = (
+        ("pending", "Pendiente"),
+        ("success", "Exitoso"),
+        ("failed", "Fallido"),
+    )
+
+    file_name = models.CharField(max_length=255)
+    file_path = models.TextField()
+    size_mb = models.DecimalField(max_digits=10, decimal_places=2, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text="Usuario o CRON"
+    )
+
+    def __str__(self):
+        
+        return self.file_name
+
 class SystemBackup(models.Model):
 
     BACKUP_TYPE_CHOICES = (
@@ -42,30 +66,6 @@ class SystemBackup(models.Model):
 
     def __str__(self):
         return self.filename
-
-class GlobalBackup(models.Model):
-
-    STATUS_CHOICES = (
-        ("pending", "Pendiente"),
-        ("success", "Exitoso"),
-        ("failed", "Fallido"),
-    )
-
-    file_name = models.CharField(max_length=255)
-    file_path = models.TextField()
-    size_mb = models.DecimalField(max_digits=10, decimal_places=2, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
-    created_at = models.DateTimeField(auto_now_add=True)
-    created_by = models.CharField(
-        max_length=100,
-        null=True,
-        blank=True,
-        help_text="Usuario o CRON"
-    )
-
-    def __str__(self):
-        
-        return self.file_name
 
 class Department(models.Model):
 

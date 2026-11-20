@@ -1,6 +1,6 @@
 from rest_framework import routers
 from django.urls import path
-from .views import CompanyViewSet, ProcedureViewSet, SubjectViewSet, ArbitrationCaseListView, FinancePaymentsExcelAPIView, FinanceAPIView, SpecialtyViewSet, UpdateCasePartyView, DeleteCasePartyView, AccountingDashboardView, PaymentsReportPDFView, ProceduralStageViewSet, CaseLocationViewSet, ArbitrationCaseViewSet, CreateCasePartyView, ArbitrationCaseFileViewSet, ArbitrationCaseMeetingViewSet, ArbitrationCaseObservationViewSet, ArbitrationCaseNotificationViewSet, CasePartyLawyerListCreateAPIView, CaseBudgetAPIView, CasePaymentListCreateAPIView, CasePaymentVoidAPIView
+from .views import CompanyViewSet, ProcedureViewSet, ArbitrationDashboardView, GlobalBackupView, BackupListView, BackupCreateView, BackupDownloadView, GlobalBackupDownloadView, SubjectViewSet, ArbitrationCaseListView, FinancePaymentsExcelAPIView, FinanceAPIView, SpecialtyViewSet, UpdateCasePartyView, DeleteCasePartyView, AccountingDashboardView, PaymentsReportPDFView, ProceduralStageViewSet, CaseLocationViewSet, ArbitrationCaseViewSet, CreateCasePartyView, ArbitrationCaseFileViewSet, ArbitrationCaseMeetingViewSet, ArbitrationCaseObservationViewSet, ArbitrationCaseNotificationViewSet, CasePartyLawyerListCreateAPIView, CaseBudgetAPIView, CasePaymentListCreateAPIView, CasePaymentVoidAPIView
 
 router = routers.DefaultRouter()
 router.register("company", CompanyViewSet)
@@ -33,7 +33,20 @@ notification_list = ArbitrationCaseNotificationViewSet.as_view({
 
 urlpatterns = [
 
+    # BACKUP
+
+    path("global-backup/", GlobalBackupView.as_view()),
+    path("global-backup/<int:backup_id>/download/", GlobalBackupDownloadView.as_view()),
+
+    path("backups/", BackupListView.as_view()),
+    path("backups/create/", BackupCreateView.as_view()),
+    path("backups/<int:pk>/download/", BackupDownloadView.as_view()),
+
+
+    # END BACKUP
+
     path("dashboard/contabilidad/", AccountingDashboardView.as_view()),
+    path("dashboard/", ArbitrationDashboardView.as_view()),
     path("arbitration-cases/list/", ArbitrationCaseListView.as_view(), name="arbitration-case-list"),
 
     path("cases/<int:case_pk>/files/", case_file_list, name="arbitration-case-files"),

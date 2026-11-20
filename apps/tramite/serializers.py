@@ -39,6 +39,22 @@ class SystemBackupSerializer(serializers.ModelSerializer):
             "created_at"
         )
 
+class SystemBackupSerializer(serializers.ModelSerializer):
+
+    filename = serializers.ReadOnlyField()
+    size_mb = serializers.ReadOnlyField()
+
+    class Meta:
+        model = SystemBackup
+        fields = (
+            "id",
+            "filename",
+            "backup_type",
+            "size",
+            "size_mb",
+            "created_at"
+        )
+
 class CompanySerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -910,3 +926,10 @@ class FinancePaymentSerializer(serializers.ModelSerializer):
             for party in parties
             if party.role == CaseParty.Role.RESPONDENT
         ]
+
+class GlobalBackupSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        
+        model = GlobalBackup
+        fields = "__all__"
